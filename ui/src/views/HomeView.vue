@@ -32,6 +32,13 @@
           />
         </div>
       </div>
+      <div v-else-if="!loading && !error">
+        <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200 mb-4">
+          <p>Service is currently offline or unreachable.</p>
+          <p class="mt-2">Please start the Rust service with:</p>
+          <pre class="bg-gray-800 text-white p-2 rounded mt-2 text-sm">./target/debug/pipeline-fs --mount-point /tmp/test-mount --stages /tmp/stage0 /tmp/stage1 --port 8080</pre>
+        </div>
+      </div>
     </main>
   </div>
 </template>
@@ -51,13 +58,31 @@ const fetchPipelineConfig = async () => {
   error.value = null;
   
   try {
+    // First check if service is reachable
+    const healthResponse = await fetch(`${apiUrl.value}/health`);
+    if (!healthResponse.ok) {
+      throw new Error(`Service not reachable: ${healthResponse.status}`);
+    }
+    
+    const healthData = await healthResponse.json();
+    if (!healthData.is_healthy) {
+      throw new Error('Service is unhealthy');
+    }
+    
+    // Only fetch config if service is healthy
     const response = await fetch(`${apiUrl.value}/config`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     config.value = await response.json();
   } catch (err) {
-    error.value = `Failed to load pipeline configuration: ${err.message}`;
+    // If we can't reach the service or it's unhealthy, don't show an error
+    // but let the user know in a friendly way
+    if (err.message.includes('Service not reachable') || err.message.includes('Service is unhealthy')) {
+      config.value = null; // Clear any previous config
+    } else {
+      error.value = `Failed to load pipeline configuration: ${err.message}`;
+    }
   } finally {
     loading.value = false;
   }

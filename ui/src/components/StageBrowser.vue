@@ -5,6 +5,9 @@
     <div v-else-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded dark:border-red-800 dark:bg-red-950 dark:text-red-200">
       {{ error }}
     </div>
+    <div v-else-if="!files.length && !loading" class="text-center py-4 text-gray-500 dark:text-gray-400">
+      No files found in this stage.
+    </div>
     <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <div 
         v-for="file in files" 
@@ -50,7 +53,12 @@ const fetchFiles = async () => {
     }
     files.value = await response.json();
   } catch (err) {
-    error.value = `Failed to load files: ${err.message}`;
+    // If we get a network error, it's likely the service is offline
+    if (err.message.includes('Failed to fetch')) {
+      error.value = 'Service is currently offline. Please start the Rust service.';
+    } else {
+      error.value = `Failed to load files: ${err.message}`;
+    }
   } finally {
     loading.value = false;
   }
