@@ -21,7 +21,7 @@ A multi-stage cascading FUSE filesystem with tier demotion capabilities.
 
 ### Monitoring Endpoints
 
-5. **`/api/v1/health`**: Health check endpoint that returns service status, version, and timestamp.
+5. **`/health`**: Health check endpoint that returns service status, version, timestamp, and a `capabilities` object. Capability flags indicate which API endpoints are currently implemented, allowing clients to gate requests from this single response.
 
 ### Real-time Events
 

@@ -1,7 +1,6 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tokio::net::TcpListener;
 use warp::Filter;
 
 #[derive(Parser, Debug)]
@@ -22,6 +21,19 @@ struct HealthResponse {
     status: String,
     version: String,
     timestamp: u64,
+    capabilities: Capabilities,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Capabilities {
+    health_endpoint: bool,
+    config_endpoint: bool,
+    stages_endpoint: bool,
+    files_endpoint: bool,
+    migrate_endpoint: bool,
+    events_endpoint: bool,
+    policies_endpoint: bool,
 }
 
 async fn health_check() -> Result<impl warp::Reply, warp::Rejection> {
@@ -32,9 +44,40 @@ async fn health_check() -> Result<impl warp::Reply, warp::Rejection> {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs(),
+        capabilities: Capabilities {
+            health_endpoint: true,
+            config_endpoint: false,
+            stages_endpoint: false,
+            files_endpoint: false,
+            migrate_endpoint: false,
+            events_endpoint: false,
+            policies_endpoint: false,
+        },
     };
     
     Ok(warp::reply::json(&response))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::health_check;
+    use warp::Reply;
+
+    #[tokio::test]
+    async fn health_response_reports_registered_capabilities() {
+        let response = health_check().await.unwrap().into_response();
+        assert_eq!(response.status(), warp::http::StatusCode::OK);
+
+        let body = warp::hyper::body::to_bytes(response.into_body())
+            .await
+            .unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(body["status"], "healthy");
+        assert_eq!(body["capabilities"]["healthEndpoint"], true);
+        assert_eq!(body["capabilities"]["configEndpoint"], false);
+        assert_eq!(body["capabilities"]["filesEndpoint"], false);
+    }
 }
 
 #[tokio::main]

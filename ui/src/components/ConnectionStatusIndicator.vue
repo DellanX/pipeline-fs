@@ -8,23 +8,16 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
-import { useServiceHealth } from '../composables/useServiceHealth';
+import { useHealth } from '@/composables/useHealth.js';
 
-const props = defineProps({
-  apiUrl: {
-    type: String,
-    required: true
-  }
-});
-
-const { status, refreshStatus } = useServiceHealth(props.apiUrl);
+const { status, refreshStatus } = useHealth();
 
 const statusClass = computed(() => {
   if (status.value.isHealthy) {
     return 'bg-green-500';
-  } else if (status.value.isUnhealthy) {
+  } else if (status.value.connected) {
     return 'bg-red-500';
   }
   return 'bg-gray-500';
@@ -33,9 +26,9 @@ const statusClass = computed(() => {
 const statusText = computed(() => {
   if (status.value.isHealthy) {
     return 'Service is healthy';
-  } else if (status.value.isUnhealthy) {
+  } else if (status.value.connected) {
     return 'Service is unhealthy';
   }
-  return 'Status unknown';
+  return 'Service is unreachable';
 });
 </script>

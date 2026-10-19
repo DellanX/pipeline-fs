@@ -17,8 +17,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, watch } from 'vue';
 import FileItemCard from './FileItemCard.vue';
+import { useHealth } from '../composables/useHealth.js';
 
 const props = defineProps({
   stageIndex: Number,
@@ -29,6 +30,7 @@ const props = defineProps({
 const files = ref([]);
 const loading = ref(false);
 const error = ref(null);
+const { canQuery } = useHealth();
 
 const fetchFiles = async () => {
   if (!props.stagePath) return;
@@ -37,6 +39,8 @@ const fetchFiles = async () => {
   error.value = null;
   
   try {
+    if (!canQuery('filesEndpoint')) return;
+
     const response = await fetch(`${props.apiUrl}/stages/${props.stageIndex}/files`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -56,9 +60,9 @@ const handleFileClick = (file) => {
 
 const emit = defineEmits(['file-clicked']);
 
-onMounted(() => {
-  fetchFiles();
-});
+watch(() => canQuery('filesEndpoint'), (enabled) => {
+  if (enabled) fetchFiles();
+}, { immediate: true });
 </script>
 
 <style scoped>

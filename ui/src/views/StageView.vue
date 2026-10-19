@@ -1,22 +1,22 @@
 <template>
-  <div class="min-h-screen bg-gray-50 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100">
-    <header class="bg-indigo-900 text-white p-4 flex justify-between items-center">
-      <h1 class="text-xl font-bold">Stage {{ stageId }} - Pipeline-FS File Browser</h1>
-      <div class="controls flex items-center gap-2">
-        <ThemeToggle />
-        <button @click="goBack" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-md transition-colors">
-          Back to Pipeline
-        </button>
-      </div>
-    </header>
-    
-    <main class="p-4">
+  <div>
+    <div class="mb-4 flex items-center justify-between gap-4">
+      <h2 class="text-lg font-semibold">Files in Stage {{ stageId }}</h2>
+      <button @click="goBack" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-md transition-colors text-white">
+        Back to Pipeline
+      </button>
+    </div>
       <div v-if="loading" class="text-center py-8">Loading files...</div>
       <div v-else-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded dark:border-red-800 dark:bg-red-950 dark:text-red-200">
         {{ error }}
       </div>
+      <div v-else-if="!connected" class="text-center py-8 text-gray-500">
+        Service is unreachable.
+      </div>
+      <div v-else-if="!canQuery('filesEndpoint')" class="text-center py-8 text-gray-500">
+        File browsing is not available from this service.
+      </div>
       <div v-else-if="files">
-        <h2 class="text-lg font-semibold mb-4">Files in Stage {{ stageId }}</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div 
             v-for="file in files" 
@@ -35,14 +35,13 @@
           </div>
         </div>
       </div>
-    </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import ThemeToggle from '../components/ThemeToggle.vue';
+import { useHealth } from '../composables/useHealth.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -51,7 +50,8 @@ const stageId = route.params.id;
 const files = ref([]);
 const loading = ref(false);
 const error = ref(null);
-const apiUrl = ref('/api');
+const apiUrl = import.meta.env.VITE_API_URL;
+const { connected, canQuery } = useHealth();
 
 const fetchFiles = async () => {
   if (!stageId) return;
@@ -60,7 +60,9 @@ const fetchFiles = async () => {
   error.value = null;
   
   try {
-    const response = await fetch(`${apiUrl.value}/stages/${stageId}/files`);
+    if (!canQuery('filesEndpoint')) return;
+
+    const response = await fetch(`${apiUrl}/stages/${stageId}/files`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -93,7 +95,7 @@ const formatSize = (size) => {
   return (size / 1073741824).toFixed(1) + ' GB';
 };
 
-onMounted(() => {
-  fetchFiles();
-});
+watch(() => canQuery('filesEndpoint'), (enabled) => {
+  if (enabled) fetchFiles();
+}, { immediate: true });
 </script>

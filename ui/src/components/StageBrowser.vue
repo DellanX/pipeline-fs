@@ -5,6 +5,12 @@
     <div v-else-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded dark:border-red-800 dark:bg-red-950 dark:text-red-200">
       {{ error }}
     </div>
+    <div v-else-if="!status.connected" class="text-center py-4 text-gray-500 dark:text-gray-400">
+      Service is unreachable.
+    </div>
+    <div v-else-if="!canQuery('filesEndpoint')" class="text-center py-4 text-gray-500 dark:text-gray-400">
+      File browsing is not available from this service.
+    </div>
     <div v-else-if="!files.length && !loading" class="text-center py-4 text-gray-500 dark:text-gray-400">
       No files found in this stage.
     </div>
@@ -28,7 +34,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, watch } from 'vue';
+import { useHealth } from '../composables/useHealth.js';
 
 const props = defineProps({
   stageIndex: Number,
@@ -39,6 +46,7 @@ const props = defineProps({
 const files = ref([]);
 const loading = ref(false);
 const error = ref(null);
+const { canQuery, status } = useHealth();
 
 const fetchFiles = async () => {
   if (!props.stagePath) return;
@@ -47,6 +55,8 @@ const fetchFiles = async () => {
   error.value = null;
   
   try {
+    if (!canQuery('filesEndpoint')) return;
+
     const response = await fetch(`${props.apiUrl}/stages/${props.stageIndex}/files`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -79,7 +89,7 @@ const formatSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-onMounted(() => {
-  fetchFiles();
-});
+watch(() => canQuery('filesEndpoint'), (enabled) => {
+  if (enabled) fetchFiles();
+}, { immediate: true });
 </script>

@@ -1,16 +1,10 @@
 <template>
-  <div class="min-h-screen bg-gray-50 text-gray-900 transition-colors dark:bg-gray-950 dark:text-gray-100">
-    <header class="bg-indigo-900 text-white p-4 flex justify-between items-center">
-      <h1 class="text-xl font-bold">Pipeline-FS File Browser</h1>
-      <div class="controls flex items-center gap-2">
-        <ThemeToggle />
-        <button @click="refreshAll" class="ml-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors">
-          Refresh All
-        </button>
-      </div>
-    </header>
-    
-    <main class="p-4">
+  <div>
+    <div class="mb-4 flex justify-end">
+      <button @click="refreshAll" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md transition-colors text-white">
+        Refresh All
+      </button>
+    </div>
       <div v-if="loading" class="text-center py-8">Loading pipeline configuration...</div>
       <div v-else-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded dark:border-red-800 dark:bg-red-950 dark:text-red-200">
         {{ error }}
@@ -32,6 +26,11 @@
           />
         </div>
       </div>
+      <div v-else-if="!loading && !error && connected">
+        <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200 mb-4">
+          The service is connected, but does not advertise a configuration endpoint.
+        </div>
+      </div>
       <div v-else-if="!loading && !error">
         <div class="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200 mb-4">
           <p>Service is currently offline or unreachable.</p>
@@ -39,50 +38,38 @@
           <pre class="bg-gray-800 text-white p-2 rounded mt-2 text-sm">./target/debug/pipeline-fs --mount-point /tmp/test-mount --stages /tmp/stage0 /tmp/stage1 --port 8080</pre>
         </div>
       </div>
-    </main>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import StageBrowser from '../components/StageBrowser.vue';
-import ThemeToggle from '../components/ThemeToggle.vue';
+import { useHealth } from '../composables/useHealth.js';
 
 const config = ref(null);
 const loading = ref(false);
 const error = ref(null);
-const apiUrl = ref('/api');
+const apiUrl = import.meta.env.VITE_API_URL;
+const { connected, canQuery, refreshStatus } = useHealth();
 
 const fetchPipelineConfig = async () => {
   loading.value = true;
   error.value = null;
   
   try {
-    // First check if service is reachable
-    const healthResponse = await fetch(`${apiUrl.value}/health`);
-    if (!healthResponse.ok) {
-      throw new Error(`Service not reachable: ${healthResponse.status}`);
+    await refreshStatus();
+    if (!canQuery('configEndpoint')) {
+      config.value = null;
+      return;
     }
-    
-    const healthData = await healthResponse.json();
-    if (!healthData.is_healthy) {
-      throw new Error('Service is unhealthy');
-    }
-    
-    // Only fetch config if service is healthy
-    const response = await fetch(`${apiUrl.value}/config`);
+
+    const response = await fetch(`${apiUrl}/config`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     config.value = await response.json();
   } catch (err) {
-    // If we can't reach the service or it's unhealthy, don't show an error
-    // but let the user know in a friendly way
-    if (err.message.includes('Service not reachable') || err.message.includes('Service is unhealthy')) {
-      config.value = null; // Clear any previous config
-    } else {
-      error.value = `Failed to load pipeline configuration: ${err.message}`;
-    }
+    error.value = `Failed to load pipeline configuration: ${err.message}`;
   } finally {
     loading.value = false;
   }
