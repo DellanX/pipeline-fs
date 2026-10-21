@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import StageView from '../views/StageView.vue'
+import ConfigView from '../views/ConfigView.vue'
 
 const routes = [
   {
@@ -13,6 +14,11 @@ const routes = [
     name: 'stage',
     component: StageView,
     props: true
+  },
+  {
+    path: '/config',
+    name: 'config',
+    component: ConfigView
   }
 ]
 

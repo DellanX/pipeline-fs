@@ -23,9 +23,14 @@ A multi-stage cascading FUSE filesystem with tier demotion capabilities.
 
 5. **`/health`**: Health check endpoint that returns service status, version, timestamp, and a `capabilities` object. Capability flags indicate which API endpoints are currently implemented, allowing clients to gate requests from this single response.
 
+### Configuration Endpoint
+
+6. **`GET /api/v1/config`**: Returns the current configuration as JSON.
+7. **`PUT /api/v1/config`**: Accepts the full configuration as JSON, validates it, and writes it back to the TOML file. The request must include a non-empty `stages` array; `port` and `mount_point` may be null or omitted. Both methods are enabled only when the service is started with `--config <path>` and can open that file for writing. Otherwise, the endpoint returns `404 Not Found`, and `/health` reports `configEndpoint: false`. CORS allows the PUT method. Configuration changes are saved to disk; restart the service for startup settings such as the HTTP port to take effect.
+
 ### Real-time Events
 
-6. **`/api/v1/events`** (SSE or WebSocket): Real-time event stream pushing storage usage telemetry, active background migration job statuses, in-flight demotion progress, and filesystem mutation events to update the Vue 3 reactive store instantly.
+8. **`/api/v1/events`** (SSE or WebSocket): Real-time event stream pushing storage usage telemetry, active background migration job statuses, in-flight demotion progress, and filesystem mutation events to update the Vue 3 reactive store instantly.
 
 ## UI Views & Capabilities
 

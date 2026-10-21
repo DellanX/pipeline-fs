@@ -1,0 +1,6 @@
+stages = [
+    "/tmp/stage0",
+    "/tmp/stage1",
+    "/tmp/stage2",
+]
+port = 8080
