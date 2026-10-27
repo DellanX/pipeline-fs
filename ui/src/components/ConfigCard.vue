@@ -1,93 +1,266 @@
 <template>
-  <div class="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-    <div class="p-6">
-      <h2 class="text-xl font-semibold mb-4">Configuration</h2>
-      
-      <div v-if="loading" class="text-center py-8">
-        <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
-        <p class="mt-2">Loading configuration...</p>
-      </div>
-      
-      <div v-else-if="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-        <strong class="font-bold">Error! </strong>
-        <span class="block">{{ error }}</span>
-      </div>
-      
-      <div v-else-if="config && config.stages" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    <header class="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
+      <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Port</label>
-          <input 
-            v-model.number="config.port" 
-            type="number" 
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
-          />
+          <p class="text-sm font-semibold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">Pipeline</p>
+          <h2 class="mt-1 text-2xl font-semibold">Stage configuration</h2>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Arrange storage stages from the first tier to the last.</p>
         </div>
-        
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mount Point</label>
-          <input 
-            v-model="config.mount_point" 
-            type="text" 
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
-          />
-        </div>
-      </div>
-      
-      <div v-else-if="!loading && !error" class="text-center py-8">
-        <p>No configuration data available</p>
-      </div>
-      
-      <div v-if="config && config.stages" class="mt-4">
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Stages</label>
-        <div 
-          v-for="(stage, index) in config.stages" 
-          :key="index"
-          class="flex items-center mb-2"
+        <button
+          type="button"
+          @click="loadConfig()"
+          :disabled="loading"
+          class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800 dark:focus-visible:outline-indigo-400"
         >
-          <input 
-            v-model="config.stages[index]" 
-            type="text" 
-            class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+          {{ loading ? 'Refreshing…' : 'Reload' }}
+        </button>
+      </div>
+    </header>
+
+    <div class="p-6">
+      <div v-if="loading && !config" class="py-10 text-center text-gray-500 dark:text-gray-400">
+        Loading configuration…
+      </div>
+      <div v-else-if="error" class="mb-5 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert">
+        Failed to load configuration: {{ error }}
+      </div>
+      <template v-else-if="config">
+        <div class="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <DiskUsageCard
+            :disk-usage-data="{
+              stageSpaces,
+              stagesLoading,
+              otherDiskBytes,
+              summaryServicePercent,
+              summaryOtherPercent,
+              formatBytes
+            }"
           />
-          <button 
-            v-if="config.stages.length > 1" 
-            @click="removeStage(index)"
-            class="ml-2 p-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+
+          <ServiceStorageCard
+            :service-storage-data="{
+              stageSpaces,
+              stagesLoading,
+              otherDiskBytes,
+              formatBytes
+            }"
+          />
+        </div>
+
+        <IODirectoryCard
+          :io-directory-data="{
+            stageSpaces,
+            stagesLoading,
+            config,
+            usagePercent,
+            stageAvailableBytes,
+            formatBytes
+          }"
+        />
+
+        <section class="mt-6 rounded-2xl border border-indigo-100 bg-gradient-to-b from-indigo-50/80 to-white p-4 sm:p-6 dark:border-indigo-950 dark:from-indigo-950/40 dark:to-gray-900">
+          <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-400">Storage flow</p>
+              <h3 class="mt-1 text-lg font-semibold">Pipeline stages</h3>
+            </div>
+            <span class="rounded-full border border-indigo-200 bg-white px-3 py-1 text-xs font-semibold text-indigo-700 dark:border-indigo-900 dark:bg-gray-900 dark:text-indigo-300">
+              {{ config.stages.length }} {{ config.stages.length === 1 ? 'stage' : 'stages' }}
+            </span>
+          </div>
+
+        <div v-if="config.stages.length" class="grid grid-cols-[1fr_auto_1fr] items-center gap-x-3 py-3 text-gray-400 dark:text-gray-500">
+          <div class="col-start-2 flex flex-col items-center px-3 py-1">
+            <span class="h-5 border-l-2 border-dashed border-indigo-300 dark:border-indigo-800" aria-hidden="true"></span>
+            <span class="-mt-1 text-xl leading-none text-indigo-500" aria-hidden="true">↓</span>
+            <span class="mt-1 text-xs font-medium uppercase tracking-wide">{{ stageLabel(0) }}</span>
+          </div>
+          <div class="col-start-3 row-start-1 flex items-center gap-1 justify-self-start">
+            <button
+              type="button"
+              @click="toggleEdgeSettings('io-to-first')"
+              class="cursor-pointer rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-800 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 active:translate-y-0 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-indigo-600 dark:hover:bg-indigo-950 dark:hover:text-indigo-200 dark:focus-visible:outline-indigo-400"
+              aria-label="IO to first stage migration settings"
+            >
+              ⚙
+            </button>
+            <button
+              type="button"
+              @click="insertStageAt(0)"
+              class="cursor-pointer rounded-md border border-dashed border-indigo-400 bg-white px-2 py-1 text-xs font-medium text-indigo-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-indigo-600 hover:bg-indigo-100 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 active:translate-y-0 dark:border-indigo-700 dark:bg-gray-900 dark:text-indigo-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-900 dark:focus-visible:outline-indigo-400"
+            >
+              ＋ Insert
+            </button>
+          </div>
+          <div v-if="settingsMigrationEdge === 'io-to-first'" class="col-span-2 text-center">
+            <span class="inline-block rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+            Migration settings for this edge will be available here.
+            </span>
+          </div>
+        </div>
+        <div v-else class="flex flex-col items-center py-3">
+          <span class="h-5 border-l-2 border-dashed border-indigo-300 dark:border-indigo-800" aria-hidden="true"></span>
+          <button
+            type="button"
+            @click="insertStageAt(0)"
+            class="cursor-pointer rounded-full border border-dashed border-indigo-400 px-4 py-2 text-sm font-medium text-indigo-700 transition-all hover:-translate-y-0.5 hover:border-indigo-600 hover:bg-indigo-100 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 active:translate-y-0 dark:border-indigo-700 dark:text-indigo-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-900 dark:focus-visible:outline-indigo-400"
           >
-            Remove
+            ＋ Add first stage
           </button>
         </div>
-        <button 
-          @click="addStage" 
-          class="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:bg-indigo-500 dark:hover:bg-indigo-600"
-        >
-          Add Stage
-        </button>
-      </div>
-      
-      <div class="mt-6 flex justify-end space-x-3">
-        <button 
-          @click="() => saveConfig()" 
-          :disabled="saving"
-          class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 dark:bg-green-500 dark:hover:bg-green-600"
-        >
-          {{ saving ? 'Saving...' : 'Save Configuration' }}
-        </button>
-        <button 
-          @click="() => loadConfig()" 
-          class="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:bg-gray-500 dark:hover:bg-gray-600"
-        >
-          Reload Configuration
-        </button>
-      </div>
+
+        <!-- Display IO/Inlet stage (index 0) as a special visual element -->
+        <div v-if="config.stages.length > 0" class="my-4 rounded-xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-900 dark:bg-gray-900">
+          <div class="flex flex-wrap items-start gap-3">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" aria-hidden="true">00</span>
+            <div class="min-w-0 flex-1">
+              <div class="mb-2 flex flex-wrap items-center gap-2">
+                <h3 class="font-semibold">{{ stageLabel(0) }}</h3>
+                <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{{ config.stages.length === 1 ? 'Input + output' : 'Entry tier' }}</span>
+              </div>
+              <label for="stage-path-0" class="sr-only">Path for {{ stageLabel(0) }}</label>
+              <input id="stage-path-0" v-model="config.stages[0]" type="text" :placeholder="`Path for ${stageLabel(0)}`" class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-950 dark:focus:bg-gray-900" />
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500 dark:text-gray-400">Stage 0</span>
+              <button
+                type="button"
+              @click="removeStage(0)"
+              class="rounded-md border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-50 hover:text-red-800 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 active:translate-y-0 dark:border-red-900 dark:bg-gray-900 dark:text-red-300 dark:hover:border-red-700 dark:hover:bg-red-950 dark:hover:text-red-200 dark:focus-visible:outline-red-400"
+            >
+              Remove
+              </button>
+            </div>
+          </div>
+          <div v-if="stageSpaceFor(config.stages[0])" class="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <div class="mb-2 flex flex-wrap justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <span>{{ formatBytes(stageSpaceFor(config.stages[0])?.directoryBytes) }} used</span>
+              <span>{{ formatBytes(stageSpaceFor(config.stages[0])?.effectiveCapacityBytes) }} usable</span>
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800" role="img" :aria-label="`${stageLabel(0)} storage usage: ${usagePercent(stageSpaceFor(config.stages[0]))}%`">
+              <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-[width] dark:from-emerald-400 dark:to-teal-400" :style="{ width: `${usagePercent(stageSpaceFor(config.stages[0]))}%` }"></div>
+            </div>
+          </div>
+        </div>
+        <div v-if="config.stages.length > 1" class="my-2 flex flex-col items-center py-1">
+          <span class="h-4 border-l-2 border-dashed border-indigo-300 dark:border-indigo-800" aria-hidden="true"></span>
+          <span class="text-indigo-500 dark:text-indigo-400" aria-hidden="true">↓</span>
+          <button type="button" @click="insertStageAt(1)" class="mt-1 rounded-full border border-dashed border-indigo-300 bg-white px-3 py-1 text-xs font-medium text-indigo-700 hover:border-indigo-500 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-indigo-800 dark:bg-gray-900 dark:text-indigo-300 dark:hover:bg-indigo-950 dark:focus-visible:outline-indigo-400">
+            + Add stage here
+          </button>
+        </div>
+
+        <!-- Display intermediate stages (excluding first and last) -->
+        <template v-for="(stage, index) in config.stages.slice(1, -1)" :key="index + 1">
+          <article class="my-4 rounded-xl border border-indigo-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-indigo-900 dark:bg-gray-900">
+            <div class="flex flex-wrap items-start gap-3">
+              <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-sm font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" aria-hidden="true">{{ String(index + 1).padStart(2, '0') }}</span>
+              <div class="min-w-0 flex-1">
+                <div class="mb-2 flex flex-wrap items-center gap-2">
+                  <h3 class="font-semibold">{{ stageLabel(index + 1) }}</h3>
+                  <span class="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">Intermediate tier</span>
+                  <span v-if="unsavedStageIndexes.has(index + 1)" class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">New</span>
+                </div>
+                <label :for="`stage-path-${index + 1}`" class="sr-only">Path for {{ stageLabel(index + 1) }}</label>
+                <input :id="`stage-path-${index + 1}`" v-model="config.stages[index + 1]" type="text" :placeholder="`Path for ${stageLabel(index + 1)}`" class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-950 dark:focus:bg-gray-900" />
+              </div>
+              <button type="button" @click="removeStage(index + 1)" class="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 hover:border-red-300 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950 dark:focus-visible:outline-red-400" :aria-label="`Remove ${stageLabel(index + 1)}`">
+                Remove
+              </button>
+            </div>
+            <div v-if="stageSpaceFor(stage)" class="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
+              <div class="mb-2 flex flex-wrap justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
+                <span>{{ formatBytes(stageSpaceFor(stage)?.directoryBytes) }} used</span>
+                <span>{{ formatBytes(stageSpaceFor(stage)?.effectiveCapacityBytes) }} usable</span>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800" role="img" :aria-label="`${stageLabel(index + 1)} storage usage: ${usagePercent(stageSpaceFor(stage))}%`">
+                <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-[width] dark:from-indigo-400 dark:to-violet-400" :style="{ width: `${usagePercent(stageSpaceFor(stage))}%` }"></div>
+              </div>
+            </div>
+          </article>
+          <div class="my-2 flex flex-col items-center py-1">
+            <span class="h-4 border-l-2 border-dashed border-indigo-300 dark:border-indigo-800" aria-hidden="true"></span>
+            <span class="text-indigo-500 dark:text-indigo-400" aria-hidden="true">↓</span>
+            <button type="button" @click="insertStageAt(index + 2)" class="mt-1 rounded-full border border-dashed border-indigo-300 bg-white px-3 py-1 text-xs font-medium text-indigo-700 hover:border-indigo-500 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-indigo-800 dark:bg-gray-900 dark:text-indigo-300 dark:hover:bg-indigo-950 dark:focus-visible:outline-indigo-400">
+              + Add stage here
+            </button>
+          </div>
+        </template>
+
+        <!-- Display last stage (N) as a special visual element -->
+        <div v-if="config.stages.length > 1" class="my-4 rounded-xl border border-amber-200 bg-white p-4 shadow-sm dark:border-amber-900 dark:bg-gray-900">
+          <div class="flex flex-wrap items-start gap-3">
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-sm font-bold text-amber-700 dark:bg-amber-950 dark:text-amber-300" aria-hidden="true">{{ String(config.stages.length - 1).padStart(2, '0') }}</span>
+            <div class="min-w-0 flex-1">
+              <div class="mb-2 flex flex-wrap items-center gap-2">
+                <h3 class="font-semibold">{{ stageLabel(config.stages.length - 1) }}</h3>
+                <span class="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-950 dark:text-amber-300">Final tier</span>
+                <span v-if="unsavedStageIndexes.has(config.stages.length - 1)" class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300">New</span>
+              </div>
+              <label :for="`stage-path-${config.stages.length - 1}`" class="sr-only">Path for {{ stageLabel(config.stages.length - 1) }}</label>
+              <input :id="`stage-path-${config.stages.length - 1}`" v-model="config.stages[config.stages.length - 1]" type="text" :placeholder="`Path for ${stageLabel(config.stages.length - 1)}`" class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-700 dark:bg-gray-950 dark:focus:bg-gray-900" />
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500 dark:text-gray-400">Stage {{ config.stages.length - 1 }}</span>
+              <button
+                type="button"
+              @click="removeStage(config.stages.length - 1)"
+              class="rounded-md border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-50 hover:text-red-800 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 active:translate-y-0 dark:border-red-900 dark:bg-gray-900 dark:text-red-300 dark:hover:border-red-700 dark:hover:bg-red-950 dark:hover:text-red-200 dark:focus-visible:outline-red-400"
+            >
+              Remove
+              </button>
+            </div>
+          </div>
+          <div v-if="stageSpaceFor(config.stages[config.stages.length - 1])" class="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <div class="mb-2 flex flex-wrap justify-between gap-2 text-xs text-gray-600 dark:text-gray-400">
+              <span>{{ formatBytes(stageSpaceFor(config.stages[config.stages.length - 1])?.directoryBytes) }} used</span>
+              <span>{{ formatBytes(stageSpaceFor(config.stages[config.stages.length - 1])?.effectiveCapacityBytes) }} usable</span>
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800" role="img" :aria-label="`${stageLabel(config.stages.length - 1)} storage usage: ${usagePercent(stageSpaceFor(config.stages[config.stages.length - 1]))}%`">
+              <div class="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-[width] dark:from-amber-400 dark:to-orange-400" :style="{ width: `${usagePercent(stageSpaceFor(config.stages[config.stages.length - 1]))}%` }"></div>
+            </div>
+          </div>
+        </div>
+        </section>
+
+        <details class="mt-6 rounded-xl border border-gray-200 dark:border-gray-700">
+          <summary class="cursor-pointer list-none rounded-xl px-4 py-3 font-medium hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:hover:bg-gray-800 dark:focus-visible:outline-indigo-400">
+            <span class="mr-2 text-gray-400" aria-hidden="true">⚙</span> Advanced settings
+            <span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">Port and mount point</span>
+          </summary>
+          <div class="grid grid-cols-1 gap-4 border-t border-gray-200 p-4 sm:grid-cols-2 dark:border-gray-700">
+            <div>
+              <label for="config-port" class="mb-1 block text-sm font-medium">API port</label>
+              <input id="config-port" v-model.number="config.port" type="number" min="1" max="65535" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900" />
+            </div>
+            <div>
+              <label for="config-mount" class="mb-1 block text-sm font-medium">Mount point</label>
+              <input id="config-mount" v-model="config.mount_point" type="text" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-gray-600 dark:bg-gray-900" />
+            </div>
+          </div>
+        </details>
+
+        <div v-if="saveError" class="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200" role="alert">
+          Failed to save configuration: {{ saveError }}
+        </div>
+        <div class="mt-6 flex flex-wrap items-center justify-end gap-3">
+          <button type="button" @click="refreshStages()" :disabled="stagesLoading" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 dark:border-gray-700 dark:hover:bg-gray-800 dark:focus-visible:outline-indigo-400">
+            {{ stagesLoading ? 'Refreshing space…' : 'Refresh space' }}
+          </button>
+          <button type="button" @click="saveConfiguration" :disabled="saving" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-600 dark:focus-visible:outline-indigo-400">
+            {{ saving ? 'Saving…' : 'Save configuration' }}
+          </button>
+        </div>
+      </template>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useFetch } from '@/composables/useFetch.js';
+import { computed, ref, watch } from 'vue';
 import { useCloned } from '@vueuse/core';
+import { useFetch } from '@/composables/useFetch.js';
 
 interface Config {
   stages: string[];
@@ -95,52 +268,168 @@ interface Config {
   mount_point: string | null;
 }
 
-// Use the existing composables for API calls
+interface StageSpace {
+  index: number | null;
+  path: string;
+  filesystemId: number | null;
+  totalBytes: number | null;
+  usedBytes: number | null;
+  availableBytes: number | null;
+  directoryBytes: number | null;
+  fileCount: number | null;
+  effectiveCapacityBytes: number | null;
+  error: string | null;
+  directoryError: string | null;
+}
+
+interface StagesResponse {
+  stages: StageSpace[];
+  ioDirectory: StageSpace | null;
+  ioError: string | null;
+  totalCapacity: {
+    filesystemCount: number;
+    totalBytes: number;
+    usedBytes: number;
+    availableBytes: number;
+  };
+  directoryUsage: {
+    configuredDirectoryCount: number;
+    scannedDirectoryCount: number;
+    fileCount: number;
+    totalBytes: number;
+  };
+}
+
 const { data, execute: loadConfig, isFetching: loading, error } = useFetch('/config', {
   immediate: true,
   refetch: false,
 }).json<Config>();
 
-// Use useFetch composable for PUT request
-const { execute: saveConfig, isFetching: saving, error: saveError } = useFetch('/config',  {
+const { execute: saveConfig, isFetching: saving, error: saveError } = useFetch('/config', {
   method: 'PUT',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 }, {
   immediate: false,
   beforeFetch: (ctx) => {
-    if (data.value) {
-      ctx.options.body = JSON.stringify(data.value);
-    }
+    if (config.value) ctx.options.body = JSON.stringify(config.value);
     return ctx;
   },
 });
 
-// Create a reactive config that can be mutated properly using useCloned
+const { data: stageSpaces, execute: refreshStages, isFetching: stagesLoading, error: stageSpaceError } = useFetch('/stages', {
+  immediate: true,
+  refetch: false,
+}).json<StagesResponse>();
+
 const { cloned: config } = useCloned(data, { deep: true });
+const unsavedStageIndexes = ref(new Set<number>());
+const settingsMigrationEdge = ref<string | null>(null);
 
-// Direct mutation functions for stages array
-const addStage = () => {
-  if (!data.value) return;
-  // Use spread operator to create a new array and update the reference
-  data.value = { ...data.value, stages: [...data.value.stages, ''] };
-};
+function stageLabel(index: number) {
+  if (!config.value) return `Stage ${index}`;
+  const isFirst = index === 0;
+  const isLast = index === config.value.stages.length - 1;
+  if (isFirst && isLast) return `Input / output stage (Stage ${index})`;
+  if (isFirst) return `Input stage (Stage ${index})`;
+  if (isLast) return `Output stage (Stage ${index})`;
+  return `Stage ${index}`;
+}
 
-const removeStage = (index: number) => {
-  if (!data.value || data.value.stages.length <= 1) return;
-  // Create new array without the removed element
-  const newStages = [...data.value.stages];
-  newStages.splice(index, 1);
-  data.value = { ...data.value, stages: newStages };
-};
+function stageDescription(index: number) {
+  if (!config.value) return 'Storage tier';
+  if (config.value.stages.length === 1 && index === 0) return 'First and final storage tier';
+  if (index === 0) return 'First storage tier';
+  if (index === config.value.stages.length - 1) return 'Final storage tier';
+  return 'Storage tier';
+}
 
-// Watch for changes in data to ensure config stays in sync
-watch(data, (newData) => {
-  if (newData && newData.stages) {
-    // Ensure we're working with a proper array reference
-    config.value = { ...newData };
+watch(data, (newConfig) => {
+  if (newConfig) {
+    config.value = { ...newConfig, stages: [...newConfig.stages] };
+    unsavedStageIndexes.value.clear();
   }
 }, { immediate: true });
 
+function insertStageAt(index: number) {
+  if (!config.value) return;
+  const stages = [...config.value.stages];
+  stages.splice(index, 0, '');
+  unsavedStageIndexes.value = new Set(
+    [...unsavedStageIndexes.value].map((pendingIndex) =>
+      pendingIndex >= index ? pendingIndex + 1 : pendingIndex,
+    ),
+  );
+  unsavedStageIndexes.value.add(index);
+  settingsMigrationEdge.value = null;
+  config.value = { ...config.value, stages };
+}
+
+function toggleEdgeSettings(edgeId: string) {
+  settingsMigrationEdge.value =
+    settingsMigrationEdge.value === edgeId ? null : edgeId;
+}
+
+function removeStage(index: number) {
+  if (!config.value || config.value.stages.length <= 1) return;
+  const stages = [...config.value.stages];
+  stages.splice(index, 1);
+  settingsMigrationEdge.value = null;
+  unsavedStageIndexes.value = new Set(
+    [...unsavedStageIndexes.value]
+      .filter((pendingIndex) => pendingIndex !== index)
+      .map((pendingIndex) => pendingIndex > index ? pendingIndex - 1 : pendingIndex),
+  );
+  config.value = { ...config.value, stages };
+}
+
+function stageSpaceFor(path: string) {
+  return stageSpaces.value?.stages.find((stage) => stage.path === path);
+}
+
+function usagePercent(space?: StageSpace) {
+  if (!space?.effectiveCapacityBytes) return 0;
+  return Math.min(100, Math.round(((space.directoryBytes ?? 0) / space.effectiveCapacityBytes) * 100));
+}
+
+function stageAvailableBytes(space?: StageSpace) {
+  if (space?.effectiveCapacityBytes == null || space.directoryBytes == null) return null;
+  return Math.max(0, space.effectiveCapacityBytes - space.directoryBytes);
+}
+
+const summaryServicePercent = computed(() => {
+  const capacity = stageSpaces.value?.totalCapacity.totalBytes;
+  const serviceUsage = stageSpaces.value?.directoryUsage.totalBytes;
+  if (!capacity || serviceUsage == null) return 0;
+  return Math.min(100, (serviceUsage / capacity) * 100);
+});
+
+const summaryOtherPercent = computed(() => {
+  const capacity = stageSpaces.value?.totalCapacity.totalBytes;
+  const otherUsage = otherDiskBytes.value;
+  if (!capacity || otherUsage == null) return 0;
+  return Math.min(100 - summaryServicePercent.value, (otherUsage / capacity) * 100);
+});
+
+const otherDiskBytes = computed(() => {
+  const capacity = stageSpaces.value?.totalCapacity;
+  const serviceUsage = stageSpaces.value?.directoryUsage.totalBytes;
+  if (!capacity || serviceUsage == null) return null;
+  return Math.max(0, capacity.usedBytes - serviceUsage);
+});
+
+function formatBytes(bytes: number | null | undefined) {
+  if (bytes == null) return '—';
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** unitIndex).toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+async function saveConfiguration() {
+  await saveConfig();
+  if (!saveError.value) {
+    unsavedStageIndexes.value.clear();
+    await refreshStages();
+  }
+}
 </script>

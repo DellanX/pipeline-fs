@@ -47,7 +47,8 @@ The background policy daemon periodically evaluates configurable rules:
 #### 5.1 Communication Protocol
 To cleanly handle both stateless command/configuration exchanges and real-time streaming (file monitoring, stage transfer progress, live metrics), the frontend and backend communicate via a standard protocol stack:
 1. **REST JSON API**:
-   - `/api/v1/stages`: Get/set stage hierarchy configuration (enforcing $N$-to-$0$ shifting).
+   - `/api/v1/config`: Read and update the configured stage directories and advanced settings.
+   - `GET /api/v1/stages`: Read filesystem capacity and filesystem identity for each configured stage and the IO directory. Each directory entry also reports recursive allocated file bytes and regular-file counts, plus effective directory capacity (filesystem total minus filesystem usage plus the directory size). The response includes total capacity across unique filesystems and a service-usage summary for stage directories only (excluding the IO view); overlapping stage paths or hard links may count the same data more than once.
    - `/api/v1/policies`: Get/update background migration policies.
    - `/api/v1/files/browse?stage=<id>&path=<p>`: Browse file entries per stage or flattened.
    - `/api/v1/migrate`: Trigger explicit migration actions.

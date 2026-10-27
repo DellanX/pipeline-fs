@@ -1,7 +1,7 @@
 <template>
   <button
     type="button"
-    class="inline-flex items-center gap-2 rounded-md border border-white/30 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+    class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
     :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
     :aria-pressed="isDark"
     @click="toggleDark()"
@@ -29,7 +29,6 @@
     >
       <path stroke-linecap="round" stroke-linejoin="round" d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z" />
     </svg>
-    <span>{{ isDark ? 'Light mode' : 'Dark mode' }}</span>
   </button>
 </template>
 

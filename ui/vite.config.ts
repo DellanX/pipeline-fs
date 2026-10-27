@@ -14,6 +14,9 @@ export default defineConfig({
     port: 3000,
     host: true,
     hmr: true,
+    watch: {
+      usePolling: true,
+    }
   },
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.jsx', '.vue'],
