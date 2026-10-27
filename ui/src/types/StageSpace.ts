@@ -1,12 +1,13 @@
-import { CapacityInfo } from "./CapacityInfo.js";
-import { UsageInfo } from "./UsageInfo.js";
-
-
 export interface StageSpace {
+    index: number | null;
     path: string;
     filesystemId: number | null;
-    capacity: CapacityInfo;
-    usage: UsageInfo;
+    totalBytes: number | null;
+    usedBytes: number | null;
+    availableBytes: number | null;
+    directoryBytes: number | null;
     fileCount: number | null;
+    effectiveCapacityBytes: number | null;
     error: string | null;
+    directoryError: string | null;
 }
