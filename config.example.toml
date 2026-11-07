@@ -1,0 +1,57 @@
+[server]
+port = 8080
+mount_point = "/mnt/pipelinefs"
+
+[write_stage]
+disk_path = "/tmp/pipelinefs/write_stage"
+# Example trigger/condition/action pattern for write stage
+triggers = [{ FileCreated = { path = "/tmp/pipelinefs/write_stage" } }]
+conditions = []
+actions = [{ Move = { target_stage = 1 } }]
+
+[shift_stages]
+[[shift_stages]]
+disk_path = "/tmp/pipelinefs/shift_stage_0"
+# Example trigger/condition/action pattern for shift stage 0
+triggers = [{ FileModified = { path = "/tmp/pipelinefs/shift_stage_0" } }]
+conditions = []
+actions = [{ Move = { target_stage = 2 } }]
+
+[[shift_stages]]
+disk_path = "/tmp/pipelinefs/shift_stage_1"
+# Example trigger/condition/action pattern for shift stage 1
+triggers = [{ Ttl = { hours = 24 } }]
+conditions = []
+actions = [{ Move = { target_stage = 0, failover_mode = "Merge" } }]
+
+[stage_stage]
+disk_path = "/tmp/pipelinefs/stage_stage"
+# Example trigger/condition/action pattern for stage stage
+triggers = [{ FileCreated = { path = "/tmp/pipelinefs/stage_stage" } }]
+conditions = []
+actions = [{ Move = { target_stage = 3 } }]
+
+[final_stage]
+disk_path = "/tmp/pipelinefs/final_stage"
+# Example trigger/condition/action pattern for final stage
+triggers = [{ Ttl = { hours = 168 } }]
+conditions = []
+actions = [{ Move = { target_stage = 3, failover_mode = "Push" } }]
+
+# Important: target_stage cannot be less than the current stage number
+# This ensures write cache stability and prevents backward writes
+
+# Anchor system for reusable configurations (parser-friendly format):
+# For parser compatibility, anchors would be defined separately from stages.
+#
+# Example anchor definition (separate section):
+# [[anchors]]
+# name = "default_migration"
+# triggers = [{ FileCreated = { path = "/tmp/pipelinefs" } }]
+# conditions = []
+# actions = [{ Move = { target_stage = 1 } }]
+#
+# Then in a stage configuration, you would reference it like:
+# [write_stage]
+# disk_path = "/tmp/pipelinefs/write_stage"
+# anchor_name = "default_migration"

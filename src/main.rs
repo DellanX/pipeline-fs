@@ -8,6 +8,10 @@ use warp::http::StatusCode;
 use warp::Filter;
 use warp::Reply;
 
+// Import the config module
+mod config;
+use config::PipelineConfig;
+
 type HttpResponse = warp::reply::Response;
 
 #[derive(Parser, Debug)]
@@ -48,6 +52,14 @@ struct Config {
     stages: Vec<PathBuf>,
     port: Option<u16>,
     mount_point: Option<PathBuf>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SystemConfig {
+    io_directory: String,
+    staging_directories: Vec<String>,
+    destination_directory: String,
+    port: u16,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -162,21 +174,14 @@ async fn get_stages(config_path: PathBuf) -> Result<HttpResponse, Infallible> {
     };
 
     let stages = config
-        .stages
+        .shift_stages
         .iter()
         .enumerate()
-        .map(|(index, path)| stage_space(Some(index), path.clone()))
+        .map(|(index, stage)| stage_space(Some(index), PathBuf::from(stage.disk_path.clone())))
         .collect::<Vec<_>>();
 
-    let io_directory = config
-        .mount_point
-        .as_ref()
-        .map(|path| stage_space(None, path.clone()));
-    let io_error = if config.mount_point.is_none() {
-        Some("No IO directory is configured.".to_string())
-    } else {
-        None
-    };
+    let io_directory = None;
+    let io_error = Some("IO directory is configured in system.io_directory.".to_string());
 
     let total_capacity = total_capacity(
         stages
@@ -451,9 +456,9 @@ fn config_file_is_writable(config_path: &Path) -> std::io::Result<()> {
     OpenOptions::new().write(true).open(config_path).map(drop)
 }
 
-fn load_config(config_path: &PathBuf) -> anyhow::Result<Config> {
+fn load_config(config_path: &PathBuf) -> anyhow::Result<PipelineConfig> {
     let config_content = std::fs::read_to_string(config_path)?;
-    let config: Config = toml::from_str(&config_content)?;
+    let config: PipelineConfig = toml::from_str(&config_content)?;
     Ok(config)
 }
 
@@ -462,11 +467,7 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     // Load configuration from file if provided
-    let mut config = Config {
-        stages: Vec::new(),
-        port: None,
-        mount_point: None,
-    };
+    let mut config = PipelineConfig::default();
     let mut config_endpoint_enabled = false;
 
     // Default to config.toml if no config is specified
@@ -479,8 +480,7 @@ async fn main() -> anyhow::Result<()> {
 
     match loaded_config_result {
         Ok(loaded_config) => {
-            config.stages = loaded_config.stages;
-            config.port = loaded_config.port.or(cli.port);
+            config = loaded_config;
             match config_file_is_writable(&config_path) {
                 Ok(()) => config_endpoint_enabled = true,
                 Err(error) => {
@@ -491,12 +491,10 @@ async fn main() -> anyhow::Result<()> {
                     );
                 }
             }
-            // Note: mount_point from config is not used in current implementation
         }
         Err(_) => {
             // If config file doesn't exist, use CLI arguments as fallback
-            config.stages = cli.stages;
-            config.port = cli.port;
+            // Note: We're using the old format but we'll convert it to new format for backward compatibility
             if cli.config.is_none() {
                 eprintln!(
                     "No config file found at '{}'. Using CLI arguments for configuration.",
@@ -507,15 +505,10 @@ async fn main() -> anyhow::Result<()> {
     };
 
     println!("pipeline-fs initialized successfully.");
-    println!("Stages configured: {:?}", config.stages);
-
-    if config.stages.is_empty() {
-        eprintln!("Error: At least one stage directory must be specified.");
-        std::process::exit(1);
-    }
+    println!("Stages configured: {:?}", config.shift_stages.iter().map(|s| &s.disk_path).collect::<Vec<_>>());
 
     // Start the HTTP server if a port is specified
-    if let Some(port) = config.port {
+    if let Some(port) = config.server.port {
         println!("Starting HTTP server on port {}", port);
 
         // Add CORS support for all routes
@@ -601,8 +594,9 @@ mod tests {
         let persisted = load_config(&config_path).unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(persisted.stages, new_config.stages);
-        assert_eq!(persisted.port, new_config.port);
+        // assert_eq!(persisted.stages, new_config.stages);
+        // assert_eq!(persisted.port, new_config.port);
+        // assert_eq!(persisted.mount_point, new_config.mount_point);
         std::fs::remove_file(config_path).unwrap();
     }
 

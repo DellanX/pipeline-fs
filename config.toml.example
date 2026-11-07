@@ -1,8 +1,0 @@
-stages = [
-    "/tmp/staging",
-    "/tmp/stage0",
-    "/tmp/stage1",
-    "/tmp/stage2",
-    "/tmp/output",
-]
-port = 8080

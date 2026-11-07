@@ -6,17 +6,27 @@ This specification details the cascading lookup resolution and POSIX operation r
 
 ## 1. Stage Hierarchy & Order
 
-`pipeline-fs` configures an ordered array of stage directories:
+`pipeline-fs` configures an ordered array of stage directories, supporting both a primary main chain and preceding variant ingest paths:
 ```
-Stages = [Stage_null, Stage_0, Stage_1, ..., Stage_N]
+Variants = [Variant_1, Variant_2, ..., Variant_M]  (Ahead of Stage_null)
+Stages   = [Stage_null, Stage_0, Stage_1, ..., Stage_N]
 ```
 
 Where:
+- **Variant Paths**: Multiple parallel write/ingest directories that exist ahead of `Stage_null`. These allow independent ingestion streams with user approval workflows before merging into the main chain (`Stage_null`).
 - `Stage_null` (index -1 or 0 in configuration) represents volatile / active I/O.
 - `Stage_0` represents the base staging layer.
 - `Stage_1` through `Stage_N` represent progressively lower archival storage tiers.
 
 ---
+
+## 2. Aggregated Virtual Views & Tiered Stacking Semantics
+
+`pipeline-fs` supports overlayfs-style bindable aggregated directories:
+1. **Main Aggregated View**: Stacks storage tiers from Stage $N$ (lowest level) up to `Stage_null` (write cache layer).
+2. **Read-Only Aggregated Tiers**:
+   - Stage $N$ aggregated view stacks *only* Stage $N$.
+   - Stage $k$ aggregated view stacks archival tiers from Stage $N$ down through Stage $k$.
 
 ## 2. Path Resolution & Cascading Lookup
 

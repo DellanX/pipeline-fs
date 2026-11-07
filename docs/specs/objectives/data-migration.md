@@ -4,9 +4,10 @@ This specification details the lifecycle migration engine, two-phase copy-and-re
 
 ---
 
-## 1. Migration Types
+## 1. Migration Types & Edge Fallback Actions
 
-`pipeline-fs` defines two primary migration pathways:
+`pipeline-fs` defines primary migration pathways and advanced edge conflict resolution rules:
+
 1. **Duplication (`Stage_null` → `Stage_0`)**:
    - Replicates stable files from the active I/O stage (`null`) to the base staging stage (`0`).
    - Retains the source file in `Stage_null` (or transitions it according to active-tier cache policy).
@@ -14,7 +15,18 @@ This specification details the lifecycle migration engine, two-phase copy-and-re
    - Progresses data downward through archival stages ($0 \to 1 \to 2 \dots \to N$).
    - Completely removes source data from `Stage_i` once successfully replicated and verified in `Stage_i+1`.
 
+### 1.1 Edge Conflict & Fallback Actions
+When a trigger condition is met and the next stage (`Stage_i+1`) already contains data/files at the target path, one of three fallback actions executes:
+1. **Fail**: Abort migration, throw an error, leave source untouched, and trigger user notification/event handlers.
+2. **Merge**: Combine data from both stages (e.g., using timestamp-based latest-wins or recursive directory merging).
+3. **Push**: Recursively push the next stage's contents downward. Configurable with a **maximum push depth** or delegated to node-specific **push event handlers**.
+
 ---
+
+## 1.2 Transforms & Branching Variant Outputs
+
+- **Custom Transform Actions**: Injectable transformation pipelines (splitting data across multiple nodes and recombining them for later nodes).
+- **Branching Variant Outputs**: Transform outputs that branch from variant paths or intermediate stages to store manipulated datasets. These are strictly isolated and non-reconcilable with the main chain to preserve aggregate data structure integrity.
 
 ## 2. Two-Phase Copy-and-Remove Protocol ($i \to i+1$)
 

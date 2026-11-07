@@ -32,11 +32,12 @@ A local UNIX domain socket or control pipe enables administrative CLI commands:
 
 ---
 
-## 4. Background Automated Policy Engine
+## 4. Background Automated Policy Engine & Injectable Extensions
 
 The background policy daemon periodically evaluates configurable rules:
 - **Age / TTL Rules**: Automatically demote files from stage $i$ to $i+1$ if unmodified for a specified duration (e.g. > 7 days).
-- **Capacity Thresholds**: Trigger demotion when active stages (`null` or `0`) exceed a high-water mark percentage of disk utilization until a low-water mark is reached.
+- **Capacity Thresholds**: Trigger demotion when active stages exceed high-water marks.
+- **Injectable Triggers / Conditions / Actions**: Supports third-party/user-developed plugins, WASM modules, or script hooks for custom migration triggers, evaluation conditions, and action pipelines.
 
 ---
 
@@ -46,8 +47,13 @@ The background policy daemon periodically evaluates configurable rules:
 
 #### 5.1 Communication Protocol
 To cleanly handle both stateless command/configuration exchanges and real-time streaming (file monitoring, stage transfer progress, live metrics), the frontend and backend communicate via a standard protocol stack:
-1. **REST JSON API**:
-   - `/api/v1/config`: Read and update the configured stage directories and advanced settings.
+1. **REST JSON API (DAG Graph-Centric)**:
+   - `/api/v1/config`: Read and update global pipeline configuration.
+   - `/api/v1/graph`: 
+     - `GET /api/v1/graph`: Returns the complete DAG topology (`nodes`, `edges`, `variants`, metadata, swimlane assignments, and fallback actions).
+     - `PUT /api/v1/graph`: Atomically update or reconfigure the DAG nodes, edges, fallback behaviors, and variant paths.
+   - `/api/v1/graph/nodes`: Add, update, or remove individual nodes (mainline stages, input sub-pipelines, or output variants).
+   - `/api/v1/graph/edges`: Reconfigure edge triggers, conditions, actions, and fallback policies (Fail, Merge, Push with depth/handlers).
    - `GET /api/v1/stages`: Read filesystem capacity and filesystem identity for each configured stage and the IO directory. Each directory entry also reports recursive allocated file bytes and regular-file counts, plus effective directory capacity (filesystem total minus filesystem usage plus the directory size). The response includes total capacity across unique filesystems and a service-usage summary for stage directories only (excluding the IO view); overlapping stage paths or hard links may count the same data more than once.
    - `/api/v1/policies`: Get/update background migration policies.
    - `/api/v1/files/browse?stage=<id>&path=<p>`: Browse file entries per stage or flattened.
@@ -56,6 +62,8 @@ To cleanly handle both stateless command/configuration exchanges and real-time s
    - `/api/v1/events` (SSE or WebSocket): Real-time event stream pushing storage usage telemetry, active background migration job statuses, in-flight demotion progress, and filesystem mutation events to update the Vue 3 reactive store instantly.
 
 #### 5.2 UI Views & Capabilities
-1. **Pipeline Status & Telemetry Dashboard**: Live storage utilization bars, file counts, and health indicators for stages `null` through $N$.
-2. **Dynamic Stage & Policy Reconfigurator**: Interactive forms for modifying stage topologies and rules.
-3. **Per-Stage & Flattened File Browser**: Switchable views to inspect files locked in specific stage tiers or view the unified flattened namespace with tombstone/whiteout badges.
+1. **Interactive DAG Pipeline Topology & Graph Dashboard**:
+   - **Mainline Center Layout**: The primary `Stage_null` acts as the central origin node, with the mainline (`Stage_0` through `Stage_N`) flowing horizontally to the right along the vertically centered axis.
+   - **Input Variants (Left Swimlanes)**: Input variant paths added to the left of `Stage_null` operate as sub-pipelines (each with their own internal `null`, `0`, through $N$ stages). In the master graph view, each input variant appears as a consolidated sub-pipeline node that can be clicked to drill down into its internal pipeline-fs graph.
+   - **Output Variants & Branching (Right/Vertical Swimlanes)**: Output variant paths can fork from any node in the mainline or stages. All output variants are positioned on separate vertical swimlanes.
+   - **Interactive Graph Editing**: Intuitive UI controls enabling users to reconfigure edges and nodes, insert or remove nodes, and add/branch input or output variants on the fly.
